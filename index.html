@@ -1700,8 +1700,69 @@ function moonIconSvg(k, waxing, size){
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--border)" stroke-width="1"/>
   </svg>`;
 }
+function angSepDeg(ra1H, dec1Deg, ra2H, dec2Deg){
+  const rad = Math.PI/180;
+  const ra1 = ra1H*15*rad, ra2 = ra2H*15*rad;
+  const d1 = dec1Deg*rad, d2 = dec2Deg*rad;
+  const cosSep = Math.sin(d1)*Math.sin(d2) + Math.cos(d1)*Math.cos(d2)*Math.cos(ra1-ra2);
+  return Math.acos(Math.max(-1,Math.min(1,cosSep)))*180/Math.PI;
+}
+// Mini altitude-over-time chart for a single object (like an observation-planner "track" chart)
+function altChartSvg(opts){
+  const {series, chartStart, chartEnd, duskIdx, dawnIdx, minAlt, altOf, peakIdx, width, height} = opts;
+  const W = width||272, H = height||96;
+  const padL=20, padR=6, padT=9, padB=16;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+  const altMin=-8, altMax=90;
+  const span = Math.max(1, chartEnd-chartStart);
+  const xOf = i => padL + (i-chartStart)/span*plotW;
+  const yOf = a => padT + (altMax-a)/(altMax-altMin)*plotH;
+
+  const duskX = xOf(Math.max(chartStart,Math.min(chartEnd,duskIdx)));
+  const dawnX = xOf(Math.max(chartStart,Math.min(chartEnd,dawnIdx)));
+
+  let s = '';
+  s += `<rect x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="var(--panel-2)"/>`;
+  s += `<rect x="${duskX.toFixed(1)}" y="${padT}" width="${Math.max(0,dawnX-duskX).toFixed(1)}" height="${plotH}" fill="var(--bg)"/>`;
+
+  [0,30,60,90].forEach(g=>{
+    const y=yOf(g).toFixed(1);
+    s += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="2,2"/>`;
+    s += `<text x="${padL-3}" y="${(+y+2.8)}" font-size="7.5" fill="var(--text-dim)" text-anchor="end" font-family="IBM Plex Mono, monospace">${g}</text>`;
+  });
+  if(minAlt>altMin && minAlt<altMax){
+    const y=yOf(minAlt).toFixed(1);
+    s += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--accent-dim)" stroke-width="0.8" stroke-dasharray="3,2"/>`;
+  }
+
+  let pts=[];
+  for(let i=chartStart;i<=chartEnd;i++) pts.push(`${xOf(i).toFixed(1)},${yOf(altOf(i)).toFixed(1)}`);
+  s += `<polyline points="${pts.join(' ')}" fill="none" stroke="var(--text-dim)" stroke-width="1.2"/>`;
+
+  let hl=[], segs=[];
+  for(let i=chartStart;i<=chartEnd;i++){
+    const ok = i>=duskIdx && i<=dawnIdx && altOf(i)>=minAlt;
+    if(ok){ hl.push(`${xOf(i).toFixed(1)},${yOf(altOf(i)).toFixed(1)}`); }
+    else { if(hl.length>1) segs.push(hl); hl=[]; }
+  }
+  if(hl.length>1) segs.push(hl);
+  segs.forEach(seg=>{ s += `<polyline points="${seg.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2"/>`; });
+
+  const pX = xOf(peakIdx), pY = yOf(altOf(peakIdx));
+  s += `<line x1="${pX.toFixed(1)}" y1="${pY.toFixed(1)}" x2="${pX.toFixed(1)}" y2="${(padT+plotH).toFixed(1)}" stroke="var(--warn)" stroke-width="1" stroke-dasharray="3,2"/>`;
+  s += `<circle cx="${pX.toFixed(1)}" cy="${pY.toFixed(1)}" r="2" fill="var(--warn)"/>`;
+  s += `<text x="${pX.toFixed(1)}" y="${Math.max(8,pY-5).toFixed(1)}" font-size="8" fill="var(--warn)" text-anchor="middle" font-family="IBM Plex Mono, monospace">${fmtLocal(series[peakIdx].localH)}</text>`;
+
+  s += `<line x1="${duskX.toFixed(1)}" y1="${padT}" x2="${duskX.toFixed(1)}" y2="${padT+plotH}" stroke="var(--text-dim)" stroke-width="0.6"/>`;
+  s += `<line x1="${dawnX.toFixed(1)}" y1="${padT}" x2="${dawnX.toFixed(1)}" y2="${padT+plotH}" stroke="var(--text-dim)" stroke-width="0.6"/>`;
+  s += `<text x="${duskX.toFixed(1)}" y="${H-4}" font-size="7.5" fill="var(--text-dim)" text-anchor="middle" font-family="IBM Plex Mono, monospace">${fmtLocal(series[Math.max(0,Math.min(series.length-1,duskIdx))].localH)}</text>`;
+  s += `<text x="${dawnX.toFixed(1)}" y="${H-4}" font-size="7.5" fill="var(--text-dim)" text-anchor="middle" font-family="IBM Plex Mono, monospace">${fmtLocal(series[Math.max(0,Math.min(series.length-1,dawnIdx))].localH)}</text>`;
+
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${s}</svg>`;
+}
 
 let customObjects = [];
+
 
 async function loadCustom(){
   try{
@@ -1971,7 +2032,7 @@ function runCalc(){
     const moonPos = moonPhaseAndPosition(jd);
     const moonAlt = altitude(moonPos.dec, lst-moonPos.ra, lat);
     const localH = 12 + i*stepDays*24; // hours since local noon start
-    const rec = {jd, localH, sunAlt, moonAlt, moonIllum:moonPos.illum, moonWaxing:moonPos.waxing, alts:{}};
+    const rec = {jd, localH, sunAlt, moonAlt, moonRa:moonPos.ra, moonDec:moonPos.dec, moonIllum:moonPos.illum, moonWaxing:moonPos.waxing, alts:{}};
     allObjects.forEach(o=>{ rec.alts[o.name] = altitude(o.dec, lst-o.ra, lat); });
     series.push(rec);
   }
@@ -1986,6 +2047,11 @@ function runCalc(){
   for(let i=minIdx;i<series.length;i++){ if(series[i].sunAlt>=usedThresh){dawnIdx=i-1;break;} }
   if(duskIdx===null) duskIdx=0;
   if(dawnIdx===null) dawnIdx=series.length-1;
+
+  // window used for the per-object mini altitude-track charts: dark window +/- 2h of twilight margin
+  const chartMarginSteps = Math.round(120/(stepDays*1440)); // ~2h
+  const chartStart = Math.max(0, duskIdx-chartMarginSteps);
+  const chartEnd = Math.min(series.length-1, dawnIdx+chartMarginSteps);
 
   const duskLocal = series[duskIdx].localH, dawnLocal = series[dawnIdx].localH;
   const durationH = dawnLocal-duskLocal;
@@ -2099,6 +2165,14 @@ function runCalc(){
     const gaiaQuery = gaiaQueryFor(o, fovW, fovH);
     const gaiaBtnId = `gaiaCopy_${o.name.replace(/[^a-z0-9]/gi,'_')}_${maxIdx}`;
 
+    const moonSepPeak = angSepDeg(o.ra, o.dec, series[maxIdx].moonRa, series[maxIdx].moonDec);
+    const moonSepColor = moonSepPeak<30 ? 'var(--warn)' : (moonSepPeak<60 ? 'var(--blue)' : 'var(--text)');
+    const altChartHtml = altChartSvg({
+      series, chartStart, chartEnd, duskIdx, dawnIdx, minAlt,
+      altOf: (i)=> series[i].alts[o.name],
+      peakIdx: maxIdx
+    });
+
     card.innerHTML = `
       <div class="cardhead">
         <div>
@@ -2111,6 +2185,8 @@ function runCalc(){
       <div class="row"><span>Size</span><span>${o.w}'×${o.h}'</span></div>
       <div class="row"><span>Culmination</span><span>${fmtLocal(series[maxIdx].localH)} (alt ${maxA.toFixed(0)}°)</span></div>
       <div class="row"><span>Above ${minAlt}° from–to</span><span>${windowTxt}</span></div>
+      <div class="row"><span>Moon separation (at peak)</span><span style="color:${moonSepColor};">${moonSepPeak.toFixed(0)}°</span></div>
+      <div style="margin:10px 0;">${altChartHtml}</div>
       <div class="row">
         <span>Real images</span>
         <span>
