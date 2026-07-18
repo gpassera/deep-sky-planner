@@ -1602,6 +1602,105 @@ function fmtLocal(hourFloat){
   return String(hh).padStart(2,'0')+":"+String(mm).padStart(2,'0');
 }
 
+// --- Moon position & phase (Schlyter low/medium-precision method, ~1 arcmin) ---
+function moonPhaseAndPosition(jd){
+  const d = jd - 2451543.5; // days since 1999-12-31 0h UT
+  const rad = Math.PI/180;
+
+  // Sun (self-consistent element set, needed for elongation/phase)
+  const wSun = 282.9404 + 4.70935e-5*d;
+  const eSun = 0.016709 - 1.151e-9*d;
+  const MSun = ((356.0470 + 0.9856002585*d)%360+360)%360;
+  const LSunMean = ((wSun + MSun)%360+360)%360;
+  let ESun = MSun + (180/Math.PI)*eSun*Math.sin(MSun*rad)*(1+eSun*Math.cos(MSun*rad));
+  const xvSun = Math.cos(ESun*rad)-eSun, yvSun = Math.sqrt(1-eSun*eSun)*Math.sin(ESun*rad);
+  const vSun = Math.atan2(yvSun,xvSun)*180/Math.PI;
+  const sunEclLon = ((vSun+wSun)%360+360)%360;
+
+  // Moon orbital elements
+  const N = ((125.1228 - 0.0529538083*d)%360+360)%360;
+  const inc = 5.1454;
+  const w = ((318.0634 + 0.1643573223*d)%360+360)%360;
+  const a = 60.2666;
+  const e = 0.054900;
+  const M = ((115.3654 + 13.0649929509*d)%360+360)%360;
+
+  let E = M + (180/Math.PI)*e*Math.sin(M*rad)*(1+e*Math.cos(M*rad));
+  for(let it=0;it<6;it++){
+    const dE = (E - (180/Math.PI)*e*Math.sin(E*rad) - M) / (1 - e*Math.cos(E*rad));
+    E -= dE;
+    if(Math.abs(dE)<1e-6) break;
+  }
+  const xv = a*(Math.cos(E*rad)-e);
+  const yv = a*(Math.sqrt(1-e*e)*Math.sin(E*rad));
+  const r = Math.sqrt(xv*xv+yv*yv);
+  const v = Math.atan2(yv,xv)*180/Math.PI;
+
+  const Nr=N*rad, ir=inc*rad, vwr=(v+w)*rad;
+  const xh = r*(Math.cos(Nr)*Math.cos(vwr) - Math.sin(Nr)*Math.sin(vwr)*Math.cos(ir));
+  const yh = r*(Math.sin(Nr)*Math.cos(vwr) + Math.cos(Nr)*Math.sin(vwr)*Math.cos(ir));
+  const zh = r*(Math.sin(vwr)*Math.sin(ir));
+  let lonEcl = Math.atan2(yh,xh)*180/Math.PI;
+  let latEcl = Math.atan2(zh, Math.sqrt(xh*xh+yh*yh))*180/Math.PI;
+  lonEcl = ((lonEcl%360)+360)%360;
+
+  // Main perturbation terms (improves accuracy to ~1 arcmin)
+  const Lm = ((N + w + M)%360+360)%360;
+  const Ms = MSun, Ls = LSunMean;
+  const D = ((Lm-Ls)%360+360)%360;
+  const F = ((Lm-N)%360+360)%360;
+  const Dr=D*rad, Mr=M*rad, Msr=Ms*rad, Fr=F*rad;
+  lonEcl += -1.274*Math.sin(Mr-2*Dr) +0.658*Math.sin(2*Dr) -0.186*Math.sin(Msr)
+    -0.059*Math.sin(2*Mr-2*Dr) -0.057*Math.sin(Mr-2*Dr+Msr) +0.053*Math.sin(Mr+2*Dr)
+    +0.046*Math.sin(2*Dr-Msr) +0.041*Math.sin(Mr-Msr) -0.035*Math.sin(Dr)
+    -0.031*Math.sin(Mr+Msr) -0.015*Math.sin(2*Fr-2*Dr) +0.011*Math.sin(Mr-4*Dr);
+  latEcl += -0.173*Math.sin(Fr-2*Dr) -0.055*Math.sin(Mr-Fr-2*Dr) -0.046*Math.sin(Mr+Fr-2*Dr)
+    +0.033*Math.sin(Fr+2*Dr) +0.017*Math.sin(2*Mr+Fr);
+  lonEcl = ((lonEcl%360)+360)%360;
+
+  // Ecliptic -> equatorial
+  const eps = 23.4393*rad;
+  const lonR=lonEcl*rad, latR=latEcl*rad;
+  const xe = Math.cos(lonR)*Math.cos(latR);
+  const ye = Math.cos(eps)*Math.sin(lonR)*Math.cos(latR) - Math.sin(eps)*Math.sin(latR);
+  const ze = Math.sin(eps)*Math.sin(lonR)*Math.cos(latR) + Math.cos(eps)*Math.sin(latR);
+  let raDeg = Math.atan2(ye,xe)*180/Math.PI; raDeg=((raDeg%360)+360)%360;
+  const decDeg = Math.asin(Math.max(-1,Math.min(1,ze)))*180/Math.PI;
+
+  // Phase (geocentric elongation from Sun)
+  const elong = ((lonEcl - sunEclLon)%360+360)%360;
+  const illum = (1-Math.cos(elong*rad))/2;
+  const waxing = elong < 180;
+
+  return {ra:raDeg/15.0, dec:decDeg, illum, elongDeg:elong, waxing};
+}
+function moonPhaseName(k, waxing){
+  if(k<0.02) return 'New Moon';
+  if(k>0.98) return 'Full Moon';
+  if(waxing){
+    if(k<0.48) return 'Waxing Crescent';
+    if(k<=0.52) return 'First Quarter';
+    return 'Waxing Gibbous';
+  }
+  if(k>0.52) return 'Waning Gibbous';
+  if(k>=0.48) return 'Last Quarter';
+  return 'Waning Crescent';
+}
+function moonIconSvg(k, waxing, size){
+  size = size||44;
+  const R = size/2 - 1;
+  const cx = size/2, cy = size/2;
+  const rx = R*Math.abs(1-2*k);
+  const outerSweep = waxing?1:0;
+  const terminatorSweep = (k>0.5) ? outerSweep : (1-outerSweep);
+  const top = (cy-R).toFixed(2), bottom=(cy+R).toFixed(2);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="display:block;">
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1"/>
+    <path d="M ${cx} ${top} A ${R.toFixed(2)} ${R.toFixed(2)} 0 0 ${outerSweep} ${cx} ${bottom} A ${rx.toFixed(2)} ${R.toFixed(2)} 0 0 ${terminatorSweep} ${cx} ${top} Z" fill="var(--accent)"/>
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--border)" stroke-width="1"/>
+  </svg>`;
+}
+
 let customObjects = [];
 
 async function loadCustom(){
@@ -1869,8 +1968,10 @@ function runCalc(){
     const lst = lstHours(jd, lon);
     const [sra, sdec] = sunRaDec(jd);
     const sunAlt = altitude(sdec, lst-sra, lat);
+    const moonPos = moonPhaseAndPosition(jd);
+    const moonAlt = altitude(moonPos.dec, lst-moonPos.ra, lat);
     const localH = 12 + i*stepDays*24; // hours since local noon start
-    const rec = {jd, localH, sunAlt, alts:{}};
+    const rec = {jd, localH, sunAlt, moonAlt, moonIllum:moonPos.illum, moonWaxing:moonPos.waxing, alts:{}};
     allObjects.forEach(o=>{ rec.alts[o.name] = altitude(o.dec, lst-o.ra, lat); });
     series.push(rec);
   }
@@ -1896,7 +1997,40 @@ function runCalc(){
   if(usedThresh!==-18){
     sLines.push(`<span class="warnline">The Sun never drops below -18°: the sky is never fully dark on this date/latitude.</span>`);
   }
-  summary.innerHTML = sLines.join('<br>');
+
+  // Moon status during the dark-sky window
+  const moonMid = series[minIdx];
+  let moonAboveCount=0, moonRiseLocal=null, moonSetLocal=null;
+  for(let i=duskIdx;i<=dawnIdx;i++){
+    if(series[i].moonAlt>=0) moonAboveCount++;
+    if(i>duskIdx){
+      if(series[i].moonAlt>=0 && series[i-1].moonAlt<0) moonRiseLocal = series[i].localH;
+      if(series[i].moonAlt<0 && series[i-1].moonAlt>=0) moonSetLocal = series[i].localH;
+    }
+  }
+  const totalWinSteps = dawnIdx-duskIdx+1;
+  const moonUpFraction = moonAboveCount/totalWinSteps;
+  let moonStatusTxt;
+  if(moonUpFraction<=0.001) moonStatusTxt = 'below the horizon all night — no interference';
+  else if(moonUpFraction>=0.999) moonStatusTxt = 'above the horizon all night';
+  else{
+    const parts=[];
+    if(moonRiseLocal!==null) parts.push(`rises ${fmtLocal(moonRiseLocal)}`);
+    if(moonSetLocal!==null) parts.push(`sets ${fmtLocal(moonSetLocal)}`);
+    moonStatusTxt = parts.length ? parts.join(', ')+` during the session` : `above horizon ${Math.round(moonUpFraction*100)}% of the window`;
+  }
+  const moonPctTxt = (moonMid.moonIllum*100).toFixed(0);
+  const moonNameTxt = moonPhaseName(moonMid.moonIllum, moonMid.moonWaxing);
+  sLines.push(`Moon: <b>${moonPctTxt}%</b> illuminated · ${moonNameTxt} · ${moonStatusTxt}`);
+  if(moonUpFraction>0.3 && moonMid.moonIllum>0.3){
+    sLines.push(`<span class="warnline">Bright moon present for a large part of the session — expect a brighter sky background, especially on broadband/RGB targets.</span>`);
+  }
+
+  const moonSvg = moonIconSvg(moonMid.moonIllum, moonMid.moonWaxing, 46);
+  summary.innerHTML = `<div style="display:flex;align-items:center;gap:16px;">
+    <div style="flex-shrink:0;">${moonSvg}</div>
+    <div style="flex:1;">${sLines.join('<br>')}</div>
+  </div>`;
 
   const grid = document.getElementById('grid');
   grid.innerHTML = '';
