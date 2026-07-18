@@ -148,12 +148,12 @@
           <div class="field"><label>Preset sensor</label>
             <select id="calcPreset">
               <option value="">— manual —</option>
-              <option value="19.1,13.0">ZWO ASI294 (4/3", 19.1×13.0mm)</option>
-              <option value="23.5,15.7">ZWO ASI2600 (APS-C, 23.5×15.7mm)</option>
-              <option value="17.7,13.4">ZWO ASI1600 (4/3", 17.7×13.4mm)</option>
-              <option value="11.31,11.31">ZWO ASI533 (1", 11.31×11.31mm)</option>
-              <option value="36,24">Full frame (36×24mm)</option>
-              <option value="23.5,15.6">APS-C generico (23.5×15.6mm)</option>
+              <option value="19.1,13.0,4144,2822,4.63">ZWO ASI294 (4/3", 19.1×13.0mm)</option>
+              <option value="23.5,15.7,6248,4176,3.76">ZWO ASI2600 (APS-C, 23.5×15.7mm)</option>
+              <option value="17.7,13.4,4656,3520,3.8">ZWO ASI1600 (4/3", 17.7×13.4mm)</option>
+              <option value="11.31,11.31,3008,3008,3.76">ZWO ASI533 (1", 11.31×11.31mm)</option>
+              <option value="36,24,,,">Full frame (36×24mm)</option>
+              <option value="23.5,15.6,,,">APS-C generico (23.5×15.6mm)</option>
             </select>
           </div>
           <div class="field"><label>Sensor width (mm)</label><input type="number" step="0.01" id="calcSensorW" placeholder="es. 19.1"></div>
@@ -1605,9 +1605,12 @@ function findInCatalog(query){
 document.getElementById('calcPreset').addEventListener('change', (e)=>{
   const val = e.target.value;
   if(!val) return;
-  const [w,h] = val.split(',').map(Number);
+  const [w,h,resW,resH,pxSize] = val.split(',');
   document.getElementById('calcSensorW').value = w;
   document.getElementById('calcSensorH').value = h;
+  document.getElementById('calcResW').value = resW || '';
+  document.getElementById('calcResH').value = resH || '';
+  document.getElementById('calcPixelSize').value = pxSize || '';
 });
 
 document.getElementById('calcFovBtn').addEventListener('click', ()=>{
