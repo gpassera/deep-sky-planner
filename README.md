@@ -2,7 +2,7 @@
 
 A single-file, offline-first web app for planning deep-sky astrophotography sessions. Enter your location, telescope/camera setup, and a date, and it tells you which objects are well placed for the whole night — with framing, filter recommendations, and a searchable catalog of 1,250+ objects.
 
-**Live version:** https://gpassera.github.io/deep-sky-planner/
+**Live version:** https://gpassera.github.io/deep-sky-planner/deep-sky-planner-v4_2
 
 No installation, no account, no server. It's a single HTML file that runs entirely in your browser.
 
@@ -21,7 +21,7 @@ No installation, no account, no server. It's a single HTML file that runs entire
 
 ## Usage
 
-1. Open the [live version](https://gpassera.github.io/deep-sky-planner/) or download `deep-sky-planner-v4_1.html` and open it in any browser.
+1. Open the [live version](https://gpassera.github.io/deep-sky-planner/deep-sky-planner-v4_2) or download `deep-sky-planner-v4_1.html` and open it in any browser.
 2. Set your date, latitude/longitude, field of view (or use the FOV calculator), and minimum altitude threshold.
 3. Browse the results, sorted by how much of the night each object stays above your altitude threshold.
 4. Optionally add objects not in the built-in catalog via the "Add object" panel.
