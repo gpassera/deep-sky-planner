@@ -167,6 +167,59 @@
         </div>
       </details>
     </div>
+    <div style="grid-column:1/-1;">
+      <details>
+        <summary style="cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-dim);letter-spacing:.05em;">Gaia field stars (optional — overlay guide/field stars on the FOV diagram)</summary>
+        <div style="margin-top:14px;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-dim);line-height:1.6;margin-bottom:10px;">
+            Paste here a CSV exported from the <a href="https://gea.esac.esa.int/archive/" target="_blank" rel="noopener" style="color:var(--accent);">Gaia Archive</a> (columns <code>ra</code>, <code>dec</code>, <code>phot_g_mean_mag</code>). Each object card below will show the ready-to-copy ADQL query for its own field, sized to the current FOV.
+          </div>
+          <textarea id="gaiaCsvInput" rows="4" style="width:100%;font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--bg-alt,#111);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:8px;" placeholder="ra,dec,phot_g_mean_mag&#10;83.6187,-5.3891,12.34&#10;..."></textarea>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
+            <button class="runbtn" id="gaiaLoadBtn" type="button">Load field stars</button>
+            <span id="gaiaStatus" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-dim);">no stars loaded</span>
+          </div>
+          <details style="margin-top:14px;">
+            <summary style="cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-dim);letter-spacing:.05em;">How to get the CSV (step-by-step)</summary>
+            <svg width="100%" viewBox="0 0 680 300" style="margin-top:12px;max-width:520px;">
+              <defs>
+                <marker id="gaiaArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M2 1L8 5L2 9" fill="none" stroke="var(--text-dim)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </marker>
+              </defs>
+              <rect x="20" y="10" width="200" height="46" rx="6" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1"/>
+              <text x="120" y="33" text-anchor="middle" fill="var(--text)" font-family="'IBM Plex Mono',monospace" font-size="11">1. Open Gaia Archive</text>
+              <line x1="220" y1="33" x2="256" y2="33" stroke="var(--text-dim)" stroke-width="1" marker-end="url(#gaiaArrow)"/>
+
+              <rect x="256" y="10" width="200" height="46" rx="6" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1"/>
+              <text x="356" y="33" text-anchor="middle" fill="var(--text)" font-family="'IBM Plex Mono',monospace" font-size="11">2. Search → ADQL</text>
+              <line x1="456" y1="33" x2="492" y2="33" stroke="var(--text-dim)" stroke-width="1" marker-end="url(#gaiaArrow)"/>
+
+              <rect x="492" y="10" width="168" height="46" rx="6" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1"/>
+              <text x="576" y="33" text-anchor="middle" fill="var(--text)" font-family="'IBM Plex Mono',monospace" font-size="11">3. Paste query</text>
+
+              <line x1="576" y1="56" x2="576" y2="80" stroke="var(--text-dim)" stroke-width="1" marker-end="url(#gaiaArrow)"/>
+              <line x1="576" y1="90" x2="356" y2="90" stroke="var(--text-dim)" stroke-width="1"/>
+              <line x1="356" y1="90" x2="356" y2="94" stroke="var(--text-dim)" stroke-width="1" marker-end="url(#gaiaArrow)"/>
+
+              <rect x="256" y="94" width="200" height="46" rx="6" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1"/>
+              <text x="356" y="117" text-anchor="middle" fill="var(--text)" font-family="'IBM Plex Mono',monospace" font-size="11">4. Submit Query</text>
+              <line x1="356" y1="140" x2="356" y2="164" stroke="var(--text-dim)" stroke-width="1" marker-end="url(#gaiaArrow)"/>
+
+              <rect x="256" y="164" width="200" height="46" rx="6" fill="var(--panel-2)" stroke="var(--accent-dim)" stroke-width="1"/>
+              <text x="356" y="187" text-anchor="middle" fill="var(--accent)" font-family="'IBM Plex Mono',monospace" font-size="11">5. Download → CSV</text>
+              <line x1="356" y1="210" x2="356" y2="234" stroke="var(--text-dim)" stroke-width="1" marker-end="url(#gaiaArrow)"/>
+
+              <rect x="196" y="234" width="320" height="46" rx="6" fill="var(--ok-fill)" stroke="var(--accent-dim)" stroke-width="1"/>
+              <text x="356" y="257" text-anchor="middle" fill="var(--accent)" font-family="'IBM Plex Mono',monospace" font-size="11">6. Paste CSV into the box above</text>
+            </svg>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-dim);line-height:1.6;margin-top:8px;">
+              Anonymous queries have a row limit — register for free on the archive if you need faint magnitudes or a wide field. Make sure to pick CSV (not VOTable/FITS) when downloading.
+            </div>
+          </details>
+        </div>
+      </details>
+    </div>
     <div class="field"><label>Minimum altitude (°)</label><input type="number" step="1" id="minAltIn" value="25"></div>
     <div class="field" style="grid-column:span 2;"><label>Imaging mode</label>
       <select id="modeFilter">
@@ -1602,6 +1655,82 @@ function findInCatalog(query){
   return null;
 }
 
+// ---- Gaia field stars ----
+let GAIA_STARS = [];
+
+function parseGaiaCsv(text){
+  const lines = text.trim().split(/\r?\n/).filter(l=>l.trim().length);
+  if(lines.length<2) return [];
+  const header = lines[0].split(',').map(h=>h.trim().toLowerCase());
+  const raIdx = header.findIndex(h=>h==='ra');
+  const decIdx = header.findIndex(h=>h==='dec');
+  const magIdx = header.findIndex(h=>h.includes('phot_g_mean_mag') || h==='mag' || h==='g');
+  if(raIdx<0 || decIdx<0) return [];
+  const out = [];
+  for(let i=1;i<lines.length;i++){
+    const cols = lines[i].split(',');
+    const ra = parseFloat(cols[raIdx]);
+    const dec = parseFloat(cols[decIdx]);
+    const mag = magIdx>=0 ? parseFloat(cols[magIdx]) : null;
+    if(isFinite(ra) && isFinite(dec)) out.push({ra, dec, mag: isFinite(mag)?mag:null});
+  }
+  return out;
+}
+
+document.getElementById('gaiaLoadBtn').addEventListener('click', ()=>{
+  const txt = document.getElementById('gaiaCsvInput').value;
+  GAIA_STARS = parseGaiaCsv(txt);
+  document.getElementById('gaiaStatus').textContent = GAIA_STARS.length
+    ? `${GAIA_STARS.length} stars loaded`
+    : 'no valid rows found — check the CSV has ra,dec[,phot_g_mean_mag] columns';
+  runCalc();
+});
+
+// Returns stars from GAIA_STARS that fall inside the object's FOV, as {x,y,mag} with x,y in 0..1
+function starsForObject(o, fovWdeg, fovHdeg){
+  if(!GAIA_STARS.length) return [];
+  const raDeg = o.ra*15;
+  const decRad = o.dec*Math.PI/180;
+  const halfW = fovWdeg/2, halfH = fovHdeg/2;
+  const out = [];
+  for(const s of GAIA_STARS){
+    let dRa = s.ra - raDeg;
+    if(dRa>180) dRa-=360; else if(dRa<-180) dRa+=360;
+    const dRaDeg = dRa*Math.cos(decRad);
+    const dDecDeg = s.dec - o.dec;
+    if(Math.abs(dRaDeg)<=halfW && Math.abs(dDecDeg)<=halfH){
+      out.push({
+        x: 0.5 - dRaDeg/fovWdeg,
+        y: 0.5 - dDecDeg/fovHdeg,
+        mag: s.mag
+      });
+    }
+  }
+  return out;
+}
+
+// Builds a ready-to-run ADQL query for the Gaia Archive, centered on the object with a radius covering the current FOV
+function gaiaQueryFor(o, fovWdeg, fovHdeg){
+  const raDeg = (o.ra*15).toFixed(5);
+  const decDeg = o.dec.toFixed(5);
+  const radiusDeg = (Math.sqrt((fovWdeg/2)**2 + (fovHdeg/2)**2)*1.05).toFixed(3);
+  return `SELECT ra, dec, phot_g_mean_mag
+FROM gaiadr3.gaia_source
+WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', ${raDeg}, ${decDeg}, ${radiusDeg}))
+AND phot_g_mean_mag < 16
+ORDER BY phot_g_mean_mag ASC`;
+}
+
+function copyGaiaQuery(btn, query){
+  navigator.clipboard.writeText(query).then(()=>{
+    const old = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(()=>{ btn.textContent = old; }, 1500);
+  }).catch(()=>{
+    prompt('Copy this ADQL query manually:', query);
+  });
+}
+
 document.getElementById('calcPreset').addEventListener('change', (e)=>{
   const val = e.target.value;
   if(!val) return;
@@ -1824,6 +1953,18 @@ function runCalc(){
     const objH = Math.min(boxH, boxH*(o.h/fovH));
     const ox = (boxW-objW)/2, oy=(boxH-objH)/2;
 
+    const fieldStars = starsForObject(o, fovW, fovH);
+    const starDotsSvg = fieldStars.map(s=>{
+      const cx = Math.min(boxW, Math.max(0, s.x*boxW));
+      const cy = Math.min(boxH, Math.max(0, s.y*boxH));
+      const mag = s.mag;
+      const r = mag!=null ? Math.max(0.5, 2.1 - mag/6) : 1;
+      const opacity = mag!=null ? Math.max(0.35, 1 - mag/18) : 0.65;
+      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="var(--text)" opacity="${opacity.toFixed(2)}"/>`;
+    }).join('');
+    const gaiaQuery = gaiaQueryFor(o, fovW, fovH);
+    const gaiaBtnId = `gaiaCopy_${o.name.replace(/[^a-z0-9]/gi,'_')}_${maxIdx}`;
+
     card.innerHTML = `
       <div class="cardhead">
         <div>
@@ -1850,12 +1991,21 @@ function runCalc(){
       <div class="fovbox">
         <svg width="${boxW}" height="${boxH}" viewBox="0 0 ${boxW} ${boxH}">
           <rect x="0.5" y="0.5" width="${boxW-1}" height="${boxH-1}" fill="none" stroke="var(--border)" stroke-width="1"/>
-          <rect x="${ox}" y="${oy}" width="${Math.max(objW,2)}" height="${Math.max(objH,2)}" fill="var(--ok-fill)" stroke="var(--accent)" stroke-width="1"/>
+          ${starDotsSvg}
+          <rect x="${ox}" y="${oy}" width="${Math.max(objW,2)}" height="${Math.max(objH,2)}" fill="var(--ok-fill)" stroke="var(--accent)" stroke-width="1" fill-opacity="0.35"/>
         </svg>
         <div class="row" style="flex:1;flex-direction:column;align-items:flex-start;">
           <span style="margin-bottom:2px;">FOV fill</span>
           <span>${fillW.toFixed(0)}% × ${fillH.toFixed(0)}%${overflow?' (exceeds the frame)':''}</span>
         </div>
+      </div>
+      <div class="row" style="font-size:10.5px;">
+        <span>Gaia field stars</span>
+        <span>${GAIA_STARS.length ? `${fieldStars.length} in field` : 'none loaded'}</span>
+      </div>
+      <div class="row" style="align-items:center;">
+        <span style="font-size:10.5px;color:var(--text-dim);">Gaia ADQL query for this field</span>
+        <button class="runbtn" id="${gaiaBtnId}" type="button" style="padding:2px 10px;font-size:10.5px;">Copy query</button>
       </div>
       <div class="filters">
         ${(o.ha==='none' && o.oiii==='none' && o.sii==='none')
@@ -1867,6 +2017,8 @@ function runCalc(){
       </div>
       <div class="notes">${o.note}</div>
     `;
+    const gaiaBtnEl = card.querySelector(`#${gaiaBtnId}`);
+    if(gaiaBtnEl) gaiaBtnEl.addEventListener('click', ()=> copyGaiaQuery(gaiaBtnEl, gaiaQuery));
     cardResults.push({coverage, el: card});
   });
 
