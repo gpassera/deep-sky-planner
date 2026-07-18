@@ -21,7 +21,7 @@ No installation, no account, no server. It's a single HTML file that runs entire
 
 ## Usage
 
-1. Open the [live version](https://gpassera.github.io/deep-sky-planner/index) or download `deep-sky-planner-v4_1.html` and open it in any browser.
+1. Open the [live version](https://gpassera.github.io/deep-sky-planner/index) or download `index.html` and open it in any browser.
 2. Set your date, latitude/longitude, field of view (or use the FOV calculator), and minimum altitude threshold.
 3. Browse the results, sorted by how much of the night each object stays above your altitude threshold.
 4. Optionally add objects not in the built-in catalog via the "Add object" panel.
