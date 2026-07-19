@@ -44,4 +44,8 @@ Object type classifications, sizes, and narrowband filter ratings for bulk-impor
 
 ## License
 
-The code in this file may be freely used, modified, and redistributed. Catalog data retains the attribution and licensing terms of its original sources listed above.
+Copyright (c) 2026 Giuseppe Passera — see [LICENSE](./LICENSE) for full terms.
+
+Personal, non-commercial use is permitted, including inspecting and modifying the code for your own use, and sharing links to this original repository. Redistribution that removes or alters authorship notices, claims of authorship by others, or commercial use, are **not** permitted without the author's prior written consent.
+
+Bundled catalog data derived from **OpenNGC** retains its original **CC-BY-SA-4.0** license: if you redistribute the catalog data itself (not just the app), you must credit OpenNGC and share alike under the same terms. See the Data Sources section above for full attribution.
