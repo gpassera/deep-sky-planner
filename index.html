@@ -128,9 +128,42 @@
   .dot.on{background:var(--accent);}
   .notes{font-size:11.5px;color:var(--text-dim);margin-top:10px;line-height:1.5;font-style:italic;}
   footer{max-width:1400px;margin:24px auto 0;padding:0 20px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-dim);}
+
+  .altchart-click{cursor:zoom-in;border-radius:4px;transition:background .15s;position:relative;}
+  .altchart-click:hover{background:rgba(227,168,87,0.06);}
+  .altchart-click:hover .zoomhint{opacity:1;}
+  .zoomhint{
+    position:absolute;top:2px;right:4px;font-family:'IBM Plex Mono',monospace;
+    font-size:9px;color:var(--text-dim);letter-spacing:.04em;opacity:0;transition:opacity .15s;
+    pointer-events:none;
+  }
+  .chart-modal-backdrop{
+    display:none;position:fixed;inset:0;background:rgba(4,6,12,0.82);
+    z-index:999;align-items:center;justify-content:center;padding:24px;
+  }
+  .chart-modal-backdrop.open{display:flex;}
+  .chart-modal-box{
+    background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:22px 26px;max-width:min(92vw,760px);position:relative;
+  }
+  .chart-modal-box .objname{font-size:18px;margin-bottom:12px;}
+  .chart-modal-close{
+    position:absolute;top:10px;right:12px;background:transparent;border:1px solid var(--border);
+    color:var(--text-dim);width:26px;height:26px;border-radius:50%;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;font-size:14px;line-height:1;
+  }
+  .chart-modal-close:hover{border-color:var(--accent);color:var(--accent);}
 </style>
 </head>
 <body>
+<div class="chart-modal-backdrop" id="chartModalBackdrop">
+  <div class="chart-modal-box">
+    <button class="chart-modal-close" id="chartModalClose" type="button" aria-label="Chiudi">✕</button>
+    <div class="objname" id="chartModalTitle"></div>
+    <div id="chartModalBody"></div>
+  </div>
+</div>
+
 <div class="wrap">
   <header>
     <div>
@@ -144,7 +177,7 @@
   </div>
 
   <div class="controls">
-    <div class="field"><label>Observation date</label><input type="date" id="dateIn" value="2026-07-17"></div>
+    <div class="field"><label>Observation date</label><input type="date" id="dateIn"></div>
     <div class="field"><label>Latitude (°N)</label><input type="number" step="0.001" id="latIn" value="45.783"></div>
     <div class="field"><label>Longitude (°E)</label><input type="number" step="0.001" id="lonIn" value="7.600"></div>
     <div class="field"><label>FOV width (°)</label><input type="number" step="0.01" id="fovwIn" value="1.04"></div>
@@ -1737,9 +1770,13 @@ function angSepDeg(ra1H, dec1Deg, ra2H, dec2Deg){
 }
 // Mini altitude-over-time chart for a single object (like an observation-planner "track" chart)
 function altChartSvg(opts){
-  const {series, chartStart, chartEnd, duskIdx, dawnIdx, minAlt, altOf, peakIdx, width, height} = opts;
+  const {series, chartStart, chartEnd, duskIdx, dawnIdx, minAlt, altOf, peakIdx, width, height, big} = opts;
   const W = width||272, H = height||96;
-  const padL=20, padR=6, padT=9, padB=16;
+  const fs = big ? 12 : 7.5;       // gridline / dusk-dawn label size
+  const fsPeak = big ? 13 : 8;     // peak label size
+  const strokeCurve = big ? 2.2 : 1.2;
+  const strokeHl = big ? 3.2 : 2;
+  const padL = big ? 34 : 20, padR = big ? 14 : 6, padT = big ? 16 : 9, padB = big ? 28 : 16;
   const plotW = W-padL-padR, plotH = H-padT-padB;
   const altMin=-8, altMax=90;
   const span = Math.max(1, chartEnd-chartStart);
@@ -1756,16 +1793,17 @@ function altChartSvg(opts){
   [0,30,60,90].forEach(g=>{
     const y=yOf(g).toFixed(1);
     s += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="2,2"/>`;
-    s += `<text x="${padL-3}" y="${(+y+2.8)}" font-size="7.5" fill="var(--text-dim)" text-anchor="end" font-family="IBM Plex Mono, monospace">${g}</text>`;
+    s += `<text x="${padL-3}" y="${(+y+2.8)}" font-size="${fs}" fill="var(--text-dim)" text-anchor="end" font-family="IBM Plex Mono, monospace">${g}°</text>`;
   });
   if(minAlt>altMin && minAlt<altMax){
     const y=yOf(minAlt).toFixed(1);
     s += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--accent-dim)" stroke-width="0.8" stroke-dasharray="3,2"/>`;
+    if(big) s += `<text x="${W-padR}" y="${(+y-3)}" font-size="${fs}" fill="var(--accent)" text-anchor="end" font-family="IBM Plex Mono, monospace">min ${minAlt}°</text>`;
   }
 
   let pts=[];
   for(let i=chartStart;i<=chartEnd;i++) pts.push(`${xOf(i).toFixed(1)},${yOf(altOf(i)).toFixed(1)}`);
-  s += `<polyline points="${pts.join(' ')}" fill="none" stroke="var(--text-dim)" stroke-width="1.2"/>`;
+  s += `<polyline points="${pts.join(' ')}" fill="none" stroke="var(--text-dim)" stroke-width="${strokeCurve}"/>`;
 
   let hl=[], segs=[];
   for(let i=chartStart;i<=chartEnd;i++){
@@ -1774,20 +1812,36 @@ function altChartSvg(opts){
     else { if(hl.length>1) segs.push(hl); hl=[]; }
   }
   if(hl.length>1) segs.push(hl);
-  segs.forEach(seg=>{ s += `<polyline points="${seg.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2"/>`; });
+  segs.forEach(seg=>{ s += `<polyline points="${seg.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="${strokeHl}"/>`; });
 
   const pX = xOf(peakIdx), pY = yOf(altOf(peakIdx));
   s += `<line x1="${pX.toFixed(1)}" y1="${pY.toFixed(1)}" x2="${pX.toFixed(1)}" y2="${(padT+plotH).toFixed(1)}" stroke="var(--warn)" stroke-width="1" stroke-dasharray="3,2"/>`;
-  s += `<circle cx="${pX.toFixed(1)}" cy="${pY.toFixed(1)}" r="2" fill="var(--warn)"/>`;
-  s += `<text x="${pX.toFixed(1)}" y="${Math.max(8,pY-5).toFixed(1)}" font-size="8" fill="var(--warn)" text-anchor="middle" font-family="IBM Plex Mono, monospace">${fmtLocal(series[peakIdx].localH)}</text>`;
+  s += `<circle cx="${pX.toFixed(1)}" cy="${pY.toFixed(1)}" r="${big?3.2:2}" fill="var(--warn)"/>`;
+  s += `<text x="${pX.toFixed(1)}" y="${Math.max(fsPeak+2,pY-6).toFixed(1)}" font-size="${fsPeak}" fill="var(--warn)" text-anchor="middle" font-family="IBM Plex Mono, monospace">${fmtLocal(series[peakIdx].localH)}${big?` · ${altOf(peakIdx).toFixed(0)}°`:''}</text>`;
 
   s += `<line x1="${duskX.toFixed(1)}" y1="${padT}" x2="${duskX.toFixed(1)}" y2="${padT+plotH}" stroke="var(--text-dim)" stroke-width="0.6"/>`;
   s += `<line x1="${dawnX.toFixed(1)}" y1="${padT}" x2="${dawnX.toFixed(1)}" y2="${padT+plotH}" stroke="var(--text-dim)" stroke-width="0.6"/>`;
-  s += `<text x="${duskX.toFixed(1)}" y="${H-4}" font-size="7.5" fill="var(--text-dim)" text-anchor="middle" font-family="IBM Plex Mono, monospace">${fmtLocal(series[Math.max(0,Math.min(series.length-1,duskIdx))].localH)}</text>`;
-  s += `<text x="${dawnX.toFixed(1)}" y="${H-4}" font-size="7.5" fill="var(--text-dim)" text-anchor="middle" font-family="IBM Plex Mono, monospace">${fmtLocal(series[Math.max(0,Math.min(series.length-1,dawnIdx))].localH)}</text>`;
+  s += `<text x="${duskX.toFixed(1)}" y="${H-(big?8:4)}" font-size="${fs}" fill="var(--text-dim)" text-anchor="middle" font-family="IBM Plex Mono, monospace">${fmtLocal(series[Math.max(0,Math.min(series.length-1,duskIdx))].localH)}</text>`;
+  s += `<text x="${dawnX.toFixed(1)}" y="${H-(big?8:4)}" font-size="${fs}" fill="var(--text-dim)" text-anchor="middle" font-family="IBM Plex Mono, monospace">${fmtLocal(series[Math.max(0,Math.min(series.length-1,dawnIdx))].localH)}</text>`;
 
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${s}</svg>`;
 }
+
+function openChartModal(title, svgHtml){
+  document.getElementById('chartModalTitle').textContent = title;
+  document.getElementById('chartModalBody').innerHTML = svgHtml;
+  document.getElementById('chartModalBackdrop').classList.add('open');
+}
+function closeChartModal(){
+  document.getElementById('chartModalBackdrop').classList.remove('open');
+}
+document.getElementById('chartModalClose').addEventListener('click', closeChartModal);
+document.getElementById('chartModalBackdrop').addEventListener('click', (e)=>{
+  if(e.target.id==='chartModalBackdrop') closeChartModal();
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='Escape') closeChartModal();
+});
 
 let customObjects = [];
 
@@ -2288,6 +2342,7 @@ function runCalc(){
       altOf: (i)=> series[i].alts[o.name],
       peakIdx: maxIdx
     });
+    const chartWrapId = `altchart_${o.name.replace(/[^a-z0-9]/gi,'_')}_${maxIdx}`;
 
     card.innerHTML = `
       <div class="cardhead">
@@ -2302,7 +2357,7 @@ function runCalc(){
       <div class="row"><span>Culmination</span><span>${fmtLocal(series[maxIdx].localH)} (alt ${maxA.toFixed(0)}°)</span></div>
       <div class="row"><span>Above ${minAlt}° from–to</span><span>${windowTxt}</span></div>
       <div class="row"><span>Moon separation (at peak)</span><span style="color:${moonSepColor};">${moonSepPeak.toFixed(0)}°</span></div>
-      <div style="margin:10px 0;">${altChartHtml}</div>
+      <div class="altchart-click" id="${chartWrapId}" style="margin:10px 0;" title="Click to enlarge">${altChartHtml}<span class="zoomhint">🔍 enlarge</span></div>
       <div class="row">
         <span>Real images</span>
         <span>
@@ -2345,6 +2400,15 @@ function runCalc(){
     `;
     const gaiaBtnEl = card.querySelector(`#${gaiaBtnId}`);
     if(gaiaBtnEl) gaiaBtnEl.addEventListener('click', ()=> copyGaiaQuery(gaiaBtnEl, gaiaQuery));
+    const chartWrapEl = card.querySelector(`#${chartWrapId}`);
+    if(chartWrapEl) chartWrapEl.addEventListener('click', ()=>{
+      const bigSvg = altChartSvg({
+        series, chartStart, chartEnd, duskIdx, dawnIdx, minAlt,
+        altOf: (i)=> series[i].alts[o.name],
+        peakIdx: maxIdx, width:700, height:280, big:true
+      });
+      openChartModal(`${o.name} — altitude track`, bigSvg);
+    });
     cardResults.push({coverage, el: card});
   });
 
@@ -2539,6 +2603,14 @@ document.getElementById('monthlyBtn').addEventListener('click', ()=>{
 window.addEventListener('load', async ()=>{
   console.log('%cDeep Sky Planner — © Giuseppe Passera', 'font-weight:bold;font-size:13px;color:#E3A857;');
   console.log('www.giuseppepassera.com · gpassera@gmail.com');
+  const dateInEl = document.getElementById('dateIn');
+  if(dateInEl && !dateInEl.value){
+    const t = new Date();
+    const yyyy = t.getFullYear();
+    const mm = String(t.getMonth()+1).padStart(2,'0');
+    const dd = String(t.getDate()).padStart(2,'0');
+    dateInEl.value = `${yyyy}-${mm}-${dd}`;
+  }
   await loadCustom();
   renderCustomList();
   populateTypeFilter();
